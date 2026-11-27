@@ -66,7 +66,7 @@ export default function Terminal() {
           <BrokerHero />
         </div>
         <div className="row half">
-          <ChartPanel index={index} ticker={selected} board={board.data} />
+          <ChartPanel index={index} board={board.data} />
           <Heatmap index={index} data={board.data} error={board.error} onSelect={open} />
         </div>
         <div className="row third">
@@ -78,3 +78,4 @@ export default function Terminal() {
     </>
   );
 }
+
