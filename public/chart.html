@@ -1,0 +1,36 @@
+<!doctype html>
+<!--
+  FireAnt quote widget, loaded in its own document. The dashboard shows this page in an iframe so the
+  third-party script cannot move or replace elements that React manages (that crashed the whole page).
+  Usage: /chart.html?symbol=VNINDEX&height=340
+-->
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>FireAnt chart</title>
+  <style>body { margin: 0; overflow: hidden; font: 12px system-ui, sans-serif; color: #747b86; }</style>
+</head>
+<body>
+  <div id="quote"></div>
+  <script src="https://www.fireant.vn/Scripts/web/widgets.js"></script>
+  <script>
+    (function () {
+      var query = new URLSearchParams(location.search);
+      var symbol = (query.get("symbol") || "").toUpperCase();
+      var height = Math.min(Math.max(parseInt(query.get("height"), 10) || 340, 200), 800);
+      try {
+        if (!/^[A-Z0-9]{3,10}$/.test(symbol)) throw new Error("bad symbol");
+        new FireAnt.QuoteWidget({
+          container_id: "quote", symbols: symbol, locale: "vi",
+          width: (document.documentElement.clientWidth || 350) + "px", height: height + "px",
+        });
+      } catch (error) {
+        console.error(error);
+        document.body.textContent = "The FireAnt widget could not be loaded.";
+      }
+    })();
+  </script>
+</body>
+</html>

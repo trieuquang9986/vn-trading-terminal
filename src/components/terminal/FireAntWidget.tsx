@@ -1,58 +1,9 @@
-"use client";
-import { useEffect, useRef, useState } from "react";
-
-const SCRIPT = "https://www.fireant.vn/Scripts/web/widgets.js";
-
-declare global {
-  interface Window {
-    FireAnt?: { QuoteWidget: new (options: Record<string, unknown>) => unknown };
-  }
-}
-
-let loading: Promise<void> | null = null;
-function loadScript() {
-  if (window.FireAnt) return Promise.resolve();
-  loading ??= new Promise<void>((resolve, reject) => {
-    const el = document.createElement("script");
-    el.src = SCRIPT;
-    el.onload = () => resolve();
-    el.onerror = () => {
-      loading = null;
-      el.remove();
-      reject(new Error("load failed"));
-    };
-    document.head.appendChild(el);
-  });
-  return loading;
-}
-
-/** FireAnt quote widget (price line chart). `id` must be unique on the page. */
-export default function FireAntWidget({ id, symbol, height = 300 }: { id: string; symbol: string; height?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setFailed(false);
-    loadScript()
-      .then(() => {
-        const node = ref.current;
-        if (cancelled || !node || !window.FireAnt) return;
-        node.innerHTML = "";
-        new window.FireAnt.QuoteWidget({
-          container_id: id, symbols: symbol, locale: "vi", width: `${node.clientWidth || 350}px`, height: `${height}px`,
-        });
-      })
-      .catch(() => !cancelled && setFailed(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [id, symbol, height]);
-
-  return (
-    <>
-      <div id={id} ref={ref} className="fireant" style={{ minHeight: height }} />
-      {failed && <p className="warnline">The FireAnt widget could not be loaded.</p>}
-    </>
-  );
+/**
+ * FireAnt price chart, isolated in an iframe (see public/chart.html).
+ * Do not load FireAnt's script into the dashboard page itself.
+ */
+export default function FireAntWidget({ symbol, height = 300 }: { symbol: string; height?: number }) {
+  const src = `/chart.html?symbol=${encodeURIComponent(symbol)}&height=${height}`;
+  // Keyed so a symbol change replaces the frame instead of adding a browser history entry.
+  return <iframe key={src} src={src} className="fireant" title={`${symbol} price chart (FireAnt)`} style={{ height }} />;
 }

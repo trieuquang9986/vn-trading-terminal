@@ -16,7 +16,7 @@ export default function ChartPanel({ index, ticker, board }: { index: IndexCode;
           {board.returns.map((r) => <div key={r.label}><dt>{r.label}</dt><dd className={tone(r.value)}>{pct(r.value)}</dd></div>)}
         </dl>
       )}
-      <FireAntWidget id="fan-quote-main" symbol={ticker ?? index} height={ticker ? 385 : 340} />
+      <FireAntWidget symbol={ticker ?? index} height={ticker ? 385 : 340} />
     </Panel>
   );
 }
