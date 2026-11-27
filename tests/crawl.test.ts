@@ -10,7 +10,7 @@ vi.mock("@neondatabase/serverless", () => ({
 
 import { requestTicker } from "../src/jobs/onDemandTicker";
 import { drain, plan } from "../src/jobs/runner";
-import { getForeignFlow, getHealth } from "../src/lib/queries";
+import { getBoard, getForeignFlow, getHealth, getMovers } from "../src/lib/queries";
 
 const VN30 = Array.from({ length: 30 }, (_, i) => `V${String(i).padStart(2, "0")}`);
 const HOSE = [...VN30, ...Array.from({ length: 370 }, (_, i) => `H${String(i).padStart(3, "0")}`)];
@@ -141,6 +141,12 @@ describe("crawl across days", () => {
     expect(await loaded("stock_daily")).toBe(400);
     expect(await loaded("fundamental_snapshot")).toBe(400);
     expect(await count(`SELECT count(*) AS n FROM crawl_queue WHERE job_id LIKE '%:r2026%' AND status='done'`)).toBeGreaterThan(0);
+
+    const board = await getBoard("VNINDEX");
+    expect(board.history.length).toBe(60);
+    expect(board.volumeAvg20 === null || board.volumeAvg20 > 0).toBe(true);
+    const movers = await getMovers("VNINDEX", 1);
+    expect(movers.gainers.every((m) => m.changePercent !== null)).toBe(true);
 
     const health = await getHealth("H001");
     expect(health.ta.coverage).toBe(100);

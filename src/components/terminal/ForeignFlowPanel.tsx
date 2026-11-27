@@ -1,88 +1,66 @@
-"use client";
-import { bnSigned, Panel, pct, Status, tone, useApi } from "./shared";
-import type { IndexCode } from "./Terminal";
+import { bnSigned, Panel, pct, Status, tone } from "./shared";
+import { INDEX_NAMES, type FlowData, type IndexCode } from "./types";
 
-interface Sums { buy: number; sell: number; net: number }
-interface Flow {
-  latestSession: string | null;
-  stockAsOf: string | null;
-  indexAsOf: string | null;
-  windows: { sessions: number; partial: boolean; index: Sums | null; stock: Sums | null; shareOfVniNet: number | null; returnVsVni: number | null }[];
-  daily: { date: string; net: number }[];
-}
+type Window = FlowData["windows"][number];
+interface Row { label: string; get: (w: Window) => number | null | undefined; format: (v: number | null | undefined) => string; plain?: boolean }
 
-export default function ForeignFlowPanel({ index, symbol }: { index: IndexCode; symbol: string }) {
-  const { data, error } = useApi<Flow>(`/api/foreign-flow?index=${index}&symbol=${symbol}`);
+export default function ForeignFlowPanel({ index, symbol, data, error }: { index: IndexCode; symbol: string | null; data?: FlowData; error?: string }) {
+  const unsigned = (v: number | null | undefined) => bnSigned(v).replace(/^\+/, "");
+  const rows: Row[] = [
+    { label: `${INDEX_NAMES[index]} buy`, get: (w) => w.index?.buy, format: unsigned, plain: true },
+    { label: `${INDEX_NAMES[index]} sell`, get: (w) => w.index?.sell, format: unsigned, plain: true },
+    { label: `${INDEX_NAMES[index]} net`, get: (w) => w.index?.net, format: bnSigned },
+    ...(symbol ? [
+      { label: `${symbol} buy`, get: (w: Window) => w.stock?.buy, format: unsigned, plain: true },
+      { label: `${symbol} sell`, get: (w: Window) => w.stock?.sell, format: unsigned, plain: true },
+      { label: `${symbol} net`, get: (w: Window) => w.stock?.net, format: bnSigned },
+      { label: `${symbol} share of VNI net`, get: (w: Window) => w.shareOfVniNet, format: pct },
+      { label: `${symbol} return vs VNI`, get: (w: Window) => w.returnVsVni, format: pct },
+    ] : []),
+  ];
   const has = data?.windows.some((w) => w.index || w.stock);
-  const max = Math.max(1, ...(data?.daily.map((d) => Math.abs(d.net)) ?? []));
 
   return (
-    <Panel title="Foreign flow, incl. put-through">
+    <Panel
+      title="Foreign investors"
+      meta={<span className="muted">VND, incl. put-through</span>}
+      actions={data?.indexAsOf && (
+        <span className="muted">
+          {INDEX_NAMES[index]} to {data.indexAsOf}
+          {symbol && data.stockAsOf ? ` · ${symbol} to ${data.stockAsOf}` : ""}
+        </span>
+      )}
+    >
       {!has && <Status error={error} loading={!data && !error} empty="No foreign flow stored yet." />}
+      {data && symbol && !data.stockAsOf && (
+        <p className="warnline">
+          {data.request === "unknown" ? `${symbol} is not in the stored HOSE list.` : `${symbol} is still loading and has been moved up the queue.`}
+        </p>
+      )}
       {data && has && (
-        <>
-          <div className="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Net VND, incl. put-through</th>
-                  {data.windows.map((w) => (
-                    <th key={w.sessions}>
-                      {w.sessions === 1 ? "Latest" : `${w.sessions}S`}
-                      {w.partial && <> <span className="badge warn">partial</span></>}
-                    </th>
-                  ))}
+        <div className="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th />
+                {data.windows.map((w) => (
+                  <th key={w.sessions}>
+                    {w.sessions === 1 ? "Latest" : `${w.sessions} sessions`}
+                    {w.partial && <> <span className="badge warn">partial</span></>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.label}>
+                  <td>{r.label}</td>
+                  {data.windows.map((w) => <td key={w.sessions} className={r.plain ? "" : tone(r.get(w))}>{r.format(r.get(w))}</td>)}
                 </tr>
-              </thead>
-              <tbody>
-                {([
-                  [`${index} net`, (w) => w.index?.net, bnSigned],
-                  [`${symbol} buy`, (w) => w.stock?.buy, bnSigned],
-                  [`${symbol} sell`, (w) => w.stock?.sell, bnSigned],
-                  [`${symbol} net`, (w) => w.stock?.net, bnSigned],
-                  [`${symbol} share of VNI net`, (w) => w.shareOfVniNet, pct],
-                  [`${symbol} return vs VNI`, (w) => w.returnVsVni, pct],
-                ] as [string, (w: Flow["windows"][number]) => number | null | undefined, (v: number | null | undefined) => string][])
-                  .map(([label, get, format]) => (
-                    <tr key={label}>
-                      <td>{label}</td>
-                      {data.windows.map((w) => {
-                        const v = get(w);
-                        const unsigned = label.endsWith("buy") || label.endsWith("sell");
-                        const text = format(v);
-                        return <td key={w.sessions} className={unsigned ? "" : tone(v)}>{unsigned ? text.replace(/^\+/, "") : text}</td>;
-                      })}
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="muted">
-            {data.indexAsOf && `${index} figures are as of ${data.indexAsOf}. `}
-            {data.stockAsOf ? `${symbol} rows are as of ${data.stockAsOf}.` : `${symbol} has not been loaded yet.`}
-          </p>
-          {data.daily.length > 0 && (
-            <>
-              <div className="flowchart" role="img" aria-label={`${index} daily foreign net value, last ${data.daily.length} sessions`}>
-                {data.daily.map((d) => {
-                  const size = `${(Math.abs(d.net) / max) * 50}%`;
-                  return (
-                    <div key={d.date} title={`${d.date}: ${bnSigned(d.net)}`}>
-                      <i style={d.net >= 0 ? { bottom: "50%", height: size, background: "var(--up)" } : { top: "50%", height: size, background: "var(--down)" }} />
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="muted">{index} daily net, incl. put-through: above the middle is net buying, below is net selling.</p>
-              <details>
-                <summary>Daily values</summary>
-                <table>
-                  <tbody>{[...data.daily].reverse().map((d) => <tr key={d.date}><td>{d.date}</td><td>{bnSigned(d.net)}</td></tr>)}</tbody>
-                </table>
-              </details>
-            </>
-          )}
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Panel>
   );

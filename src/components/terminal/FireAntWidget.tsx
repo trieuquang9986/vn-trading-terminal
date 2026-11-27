@@ -26,12 +26,8 @@ function loadScript() {
   return loading;
 }
 
-/**
- * FireAnt quote widget (price line chart). `id` must be unique on the page.
- * FireAnt exposes no dark theme, so `dark` inverts the light widget and rotates hues back,
- * which keeps green and red recognisable.
- */
-export default function FireAntWidget({ id, symbol, dark }: { id: string; symbol: string; dark?: boolean }) {
+/** FireAnt quote widget (price line chart). `id` must be unique on the page. */
+export default function FireAntWidget({ id, symbol, height = 300 }: { id: string; symbol: string; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
 
@@ -44,18 +40,18 @@ export default function FireAntWidget({ id, symbol, dark }: { id: string; symbol
         if (cancelled || !node || !window.FireAnt) return;
         node.innerHTML = "";
         new window.FireAnt.QuoteWidget({
-          container_id: id, symbols: symbol, locale: "vi", width: `${node.clientWidth || 350}px`, height: "300px",
+          container_id: id, symbols: symbol, locale: "vi", width: `${node.clientWidth || 350}px`, height: `${height}px`,
         });
       })
       .catch(() => !cancelled && setFailed(true));
     return () => {
       cancelled = true;
     };
-  }, [id, symbol]);
+  }, [id, symbol, height]);
 
   return (
     <>
-      <div id={id} ref={ref} className={dark ? "fireant dark" : "fireant"} />
+      <div id={id} ref={ref} className="fireant" style={{ minHeight: height }} />
       {failed && <p className="warnline">The FireAnt widget could not be loaded.</p>}
     </>
   );

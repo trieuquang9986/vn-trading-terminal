@@ -56,6 +56,14 @@ export async function getBoard(index: IndexCode) {
   const windows: [string, number][] = [["1W", 5], ["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["YTD", ytdSessions]];
   const returns = windows.map(([label, n]) => ({ label, value: periodReturn(closes, n) }));
 
+  // Context for the summary cards: sparkline closes and the volume of the 20 sessions before the latest one.
+  const history = closes.filter((c): c is number => c !== null).slice(-60);
+  const volumes = await query<{ date: string; volume: number }>(
+    `SELECT date::text, volume FROM index_daily WHERE index_code = $1 AND volume IS NOT NULL AND date = ANY($2::date[]) ORDER BY date DESC LIMIT 21`,
+    [index, dates]);
+  const prior = volumes.filter((v) => v.date < (row?.date ?? volumes[0]?.date ?? "")).slice(0, 20);
+  const volumeAvg20 = prior.length === 20 ? prior.reduce((s, v) => s + v.volume, 0) / 20 : null;
+
   const snap = await members(index, 1);
   const latest = snap.bySession.get(snap.dates.at(-1) ?? "") ?? [];
   const totalCap = latest.reduce((s, m) => s + (m.marketCap ?? 0), 0);
@@ -63,6 +71,8 @@ export async function getBoard(index: IndexCode) {
     index,
     board: row ?? null,
     returns,
+    history,
+    volumeAvg20,
     heatmapDate: snap.dates.at(-1) ?? null,
     // Tile area: reported weight, else share of market cap.
     constituents: latest.map((m) => ({
@@ -98,7 +108,9 @@ export async function getMovers(index: IndexCode, sessions: 1 | 5 | 21) {
     indexChange += board.change;
     counted++;
   }
-  const ranked = [...totals].map(([symbol, points]) => ({ symbol, points })).sort((a, b) => b.points - a.points);
+  // A daily % move is only meaningful for the single-session view.
+  const lastMoves = new Map((bySession.get(used.at(-1) ?? "") ?? []).map((m) => [m.symbol, m.changePercent]));
+  const ranked = [...totals].map(([symbol, points]) => ({ symbol, points, changePercent: sessions === 1 ? lastMoves.get(symbol) ?? null : null })).sort((a, b) => b.points - a.points);
   const residual = indexChange - explained;
   const warnings: string[] = [];
   if (index === "VN30" && counted && Math.abs(residual) > 0.05) {

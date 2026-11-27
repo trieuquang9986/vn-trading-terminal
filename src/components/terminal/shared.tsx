@@ -31,12 +31,13 @@ export const bn = (v: number | null | undefined) => (v == null ? "—" : `${num(
 export const bnSigned = (v: number | null | undefined) => (v == null ? "—" : `${signed(v / 1e9, 1)} bn`);
 export const tone = (v: number | null | undefined) => (v == null || v === 0 ? "" : v > 0 ? "up" : "down");
 
-export function Panel(props: { title: string; actions?: ReactNode; children: ReactNode }) {
+export function Panel(props: { title: string; meta?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
     <section className="panel">
       <header>
         <h2>{props.title}</h2>
-        {props.actions}
+        <span className="meta">{props.meta}</span>
+        <span className="actions">{props.actions}</span>
       </header>
       {props.children}
     </section>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import TopBar from "../../components/layout/TopBar";
 
 export const metadata: Metadata = { title: "Broker & courses · VN Market Terminal" };
 
@@ -10,6 +11,8 @@ const COURSES = [
 
 export default function About() {
   return (
+    <>
+    <TopBar active="about" />
     <main className="about">
       <p className="notice">Placeholder page. Text in [brackets] is waiting for your details.</p>
       <section>
@@ -43,5 +46,6 @@ export default function About() {
         </ul>
       </section>
     </main>
+    </>
   );
 }
