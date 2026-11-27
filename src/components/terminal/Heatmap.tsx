@@ -35,11 +35,11 @@ export default function Heatmap({ index, data, error, onSelect }: { index: Index
 
   return (
     <Panel
-      title={`${INDEX_NAMES[index]} heatmap`}
+      title={`Bản đồ nhiệt ${INDEX_NAMES[index]}`}
       meta={data?.heatmapDate && <span className="muted">{data.heatmapDate}</span>}
-      actions={<span className="muted">Size = index weight{data && data.constituents.length > MAX_TILES ? ` · ${MAX_TILES} largest` : ""}</span>}
+      actions={<span className="muted">Quy mô = tỷ trọng chỉ số{data && data.constituents.length > MAX_TILES ? ` · ${MAX_TILES} mã lớn nhất` : ""}</span>}
     >
-      {!tiles.length && <Status error={error} loading={!data && !error} empty="No constituent snapshot stored yet." />}
+      {!tiles.length && <Status error={error} loading={!data && !error} empty="Chưa có dữ liệu thành phần chỉ số." />}
       {tiles.length > 0 && (
         <>
           <div className="heatmap" ref={ref} style={{ height: HEIGHT }}>
@@ -49,7 +49,7 @@ export default function Heatmap({ index, data, error, onSelect }: { index: Index
                 <button
                   key={item.symbol} type="button" className="tile" onClick={() => onSelect(item.symbol)}
                   style={{ left: x, top: y, width: w, height: h, background: c.bg, color: c.fg, fontSize: Math.max(10, Math.min(16, w / 5)) }}
-                  title={`${item.symbol} ${item.name ?? ""}\n${num(item.price, 0)} VND · ${signed(item.changePercent)}% · weight ${num(item.weight)}%`}
+                  title={`${item.symbol} ${item.name ?? ""}\n${num(item.price, 0)} VND · ${signed(item.changePercent)}% · tỷ trọng ${num(item.weight)}%`}
                   aria-label={`${item.symbol} ${signed(item.changePercent)}%`}
                 >
                   {w > 28 && h > 16 && <strong>{item.symbol}</strong>}

@@ -8,7 +8,7 @@ export default function ChartPanel({ index, board }: { index: IndexCode; board?:
   return (
     <Panel
       title={INDEX_NAMES[index]}
-      meta={b && <><span className={tone(b.change)}>{signed(b.change)} ({signed(b.changePercent)}%)</span><span className="muted">Close {b.date}</span></>}
+      meta={b && <><span className={tone(b.change)}>{signed(b.change)} ({signed(b.changePercent)}%)</span><span className="muted">Đóng cửa {b.date}</span></>}
       actions={<span className="badge">FireAnt</span>}
     >
       {board && (

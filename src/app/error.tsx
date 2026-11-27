@@ -4,9 +4,9 @@
 export default function PageError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <main className="about">
-      <h1>Something broke on this page</h1>
-      <p className="warnline">{error.message || "Unknown error"}{error.digest ? ` (${error.digest})` : ""}</p>
-      <button type="button" onClick={reset}>Try again</button>
+      <h1>Đã xảy ra lỗi trên trang này</h1>
+      <p className="warnline">{error.message || "Lỗi không xác định"}{error.digest ? ` (${error.digest})` : ""}</p>
+      <button type="button" onClick={reset}>Thử lại</button>
     </main>
   );
 }

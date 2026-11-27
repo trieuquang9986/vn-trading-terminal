@@ -18,16 +18,16 @@ export default function IndexMovers({ index, onSelect }: { index: IndexCode; onS
 
   return (
     <Panel
-      title={`${INDEX_NAMES[index]} contribution`}
+      title={`${INDEX_NAMES[index]} · Đóng góp điểm số`}
       meta={data?.counted ? (
         <>
-          <span className={tone(data.indexChange)}>Net {signed(data.indexChange)} pts</span>
-          {data.counted < data.requested && <span className="badge warn">partial {data.counted}/{data.requested}</span>}
+          <span className={tone(data.indexChange)}>Ròng {signed(data.indexChange)} điểm</span>
+          {data.counted < data.requested && <span className="badge warn">chưa đủ {data.counted}/{data.requested}</span>}
         </>
       ) : null}
-      actions={<Segmented label="Window" value={sessions} onChange={setSessions} options={[[1, "1D"], [5, "5D"], [21, "21D"]]} />}
+      actions={<Segmented label="Khoảng thời gian" value={sessions} onChange={setSessions} options={[[1, "1D"], [5, "5D"], [21, "21D"]]} />}
     >
-      {!data?.counted && <Status error={error} loading={!data && !error} empty="No constituent snapshots stored yet." />}
+      {!data?.counted && <Status error={error} loading={!data && !error} empty="Chưa có dữ liệu thành phần chỉ số." />}
       {data && data.counted > 0 && (
         <>
           {/* On narrow screens the chart scrolls; start at the zero crossing so both sides show. */}
@@ -37,7 +37,7 @@ export default function IndexMovers({ index, onSelect }: { index: IndexCode; onS
                 const height = Math.max(2, (Math.abs(m.points) / max) * PLOT);
                 const up = m.points > 0;
                 return (
-                  <button type="button" key={m.symbol} onClick={() => onSelect(m.symbol)} aria-label={`${m.symbol} ${signed(m.points)} points`}>
+                  <button type="button" key={m.symbol} onClick={() => onSelect(m.symbol)} aria-label={`${m.symbol} ${signed(m.points)} điểm`}>
                     <span className="half-up">{up && <><small>{signed(m.points)}</small><i style={{ height, background: "var(--up)" }} /></>}</span>
                     <span className="half-down">{!up && <><i style={{ height, background: "var(--down)" }} /><small>{signed(m.points)}</small></>}</span>
                     <strong>{m.symbol}</strong>
@@ -48,7 +48,7 @@ export default function IndexMovers({ index, onSelect }: { index: IndexCode; onS
             </div>
           </div>
           <p className="muted note">
-            {index === "VN30" ? "Estimated from free-float weights with a 10% cap." : "Estimated from constituent market capitalisation."} Largest {PER_SIDE} each way.
+            {index === "VN30" ? "Ước tính theo tỷ trọng cổ phiếu tự do chuyển nhượng, giới hạn 10%." : "Ước tính theo vốn hóa các cổ phiếu thành phần."} {PER_SIDE} mã tăng và giảm mạnh nhất.
           </p>
           {data.warnings.map((w) => <p className="warnline" key={w}>{w}</p>)}
         </>

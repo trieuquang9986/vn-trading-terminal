@@ -2,7 +2,7 @@
 import { hasDb } from "./db";
 
 export async function respond(load: () => Promise<unknown>, maxAge = 300) {
-  if (!hasDb()) return Response.json({ error: "Database is not configured." }, { status: 503 });
+  if (!hasDb()) return Response.json({ error: "Cơ sở dữ liệu chưa được cấu hình." }, { status: 503 });
   try {
     return Response.json(await load(), {
       headers: {
@@ -14,7 +14,7 @@ export async function respond(load: () => Promise<unknown>, maxAge = 300) {
     });
   } catch (error) {
     console.error(error);
-    return Response.json({ error: "Could not read market data." }, { status: 500 });
+    return Response.json({ error: "Không thể đọc dữ liệu thị trường." }, { status: 500 });
   }
 }
 

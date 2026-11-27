@@ -9,7 +9,7 @@ export function useApi<T>(url: string) {
     fetch(url, { signal: controller.signal })
       .then(async (res) => {
         const body = await res.json().catch(() => null);
-        if (!res.ok || !body) throw new Error(body?.error ?? `Request failed (${res.status})`);
+        if (!res.ok || !body) throw new Error(body?.error ?? `Yêu cầu không thành công (${res.status})`);
         setState({ url, data: body as T });
       })
       .catch((e: Error) => {
@@ -27,8 +27,8 @@ export const signed = (v: number | null | undefined, digits = 2) =>
 /** Input is a fraction. */
 export const pct = (v: number | null | undefined) => (v == null ? "—" : `${signed(v * 100)}%`);
 /** VND to billions. */
-export const bn = (v: number | null | undefined) => (v == null ? "—" : `${num(v / 1e9, 1)} bn`);
-export const bnSigned = (v: number | null | undefined) => (v == null ? "—" : `${signed(v / 1e9, 1)} bn`);
+export const bn = (v: number | null | undefined) => (v == null ? "—" : `${num(v / 1e9, 1)} tỷ`);
+export const bnSigned = (v: number | null | undefined) => (v == null ? "—" : `${signed(v / 1e9, 1)} tỷ`);
 export const tone = (v: number | null | undefined) => (v == null || v === 0 ? "" : v > 0 ? "up" : "down");
 
 export function Panel(props: { title: string; meta?: ReactNode; actions?: ReactNode; children: ReactNode }) {
@@ -45,7 +45,7 @@ export function Panel(props: { title: string; meta?: ReactNode; actions?: ReactN
 }
 
 export function Status({ error, loading, empty }: { error?: string; loading: boolean; empty?: string }) {
-  return <p className="muted" role="status">{error ?? (loading ? "Loading…" : empty)}</p>;
+  return <p className="muted" role="status">{error ?? (loading ? "Đang tải…" : empty)}</p>;
 }
 
 export function Segmented<T extends string | number>(props: {

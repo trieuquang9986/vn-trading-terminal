@@ -22,11 +22,11 @@ export default function IndexCard({ name, data, active, onSelect }: { name: stri
       <span>
         <span className="cardname">{name}</span>
         <strong className={tone(b?.change)}>{num(b?.indexValue ?? data?.history.at(-1))}</strong>
-        <span className={tone(b?.change)}>{b ? `${signed(b.change)} (${signed(b.changePercent)}%)` : "No board yet"}</span>
+        <span className={tone(b?.change)}>{b ? `${signed(b.change)} (${signed(b.changePercent)}%)` : "Chưa có dữ liệu chỉ số"}</span>
       </span>
-      <span className="sparkwrap" title="Last 60 sessions">
+      <span className="sparkwrap" title="60 phiên gần nhất">
         <Sparkline values={history} className={tone(trend)} />
-        <small>60 sessions</small>
+        <small>60 phiên</small>
       </span>
     </button>
   );

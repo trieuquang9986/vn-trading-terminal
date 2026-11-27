@@ -40,7 +40,7 @@ export default function Terminal() {
       <TopBar active="dashboard">
         <form onSubmit={submit} className="command" role="search">
           <span aria-hidden="true">⌕</span>
-          <input aria-label="Ticker" placeholder="Type a ticker (e.g. FPT) and press Enter" list="symbols" maxLength={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <input aria-label="Mã chứng khoán" placeholder="Nhập mã chứng khoán (ví dụ: FPT) rồi nhấn Enter" list="symbols" maxLength={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
           <datalist id="symbols">
             {symbols.data?.map((s) => <option key={s.symbol} value={s.symbol}>{s.name}</option>)}
           </datalist>
@@ -48,11 +48,11 @@ export default function Terminal() {
       </TopBar>
 
       <div className="tabs">
-        <button type="button" className="tab" aria-pressed={!selected} onClick={() => setOnTicker(false)}>Market overview</button>
+        <button type="button" className="tab" aria-pressed={!selected} onClick={() => setOnTicker(false)}>Toàn cảnh thị trường</button>
         {ticker && (
           <span className="tabgroup">
             <button type="button" className="tab" aria-pressed={onTicker} onClick={() => setOnTicker(true)}>{ticker} (1D)</button>
-            <button type="button" className="tabclose" aria-label={`Close ${ticker}`} onClick={() => { setTicker(null); setOnTicker(false); }}>×</button>
+            <button type="button" className="tabclose" aria-label={`Đóng ${ticker}`} onClick={() => { setTicker(null); setOnTicker(false); }}>×</button>
           </span>
         )}
       </div>
