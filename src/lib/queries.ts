@@ -142,12 +142,22 @@ export async function getForeignFlow(index: IndexCode, symbol: string | null) {
   const stockCloses = alignToCalendar(stockDates, stockCloseMap);
   const stockVniCloses = alignToCalendar(stockDates, await closeMap("index_daily", "index_code", "VNINDEX"));
   const firstFlow = [...stockRows.keys()].sort()[0];
+  // Index flow can be published later than prices: its windows end on its own last date.
+  const upTo = (rows: Map<string, unknown>, list: string[]) => {
+    const last = [...rows.keys()].sort().at(-1) ?? "";
+    return list.filter((d) => d <= last);
+  };
+  const indexDates = upTo(indexRows, dates);
+  const shareDates = upTo(vniRows, stockDates);
 
   const windows = FLOW_WINDOWS.map((n) => {
-    const span = dates.slice(-n);
-    const idx = indexRows.size ? sumWindow(indexRows, span) : null;
+    const indexSpan = indexDates.slice(-n);
+    const idx = indexSpan.length ? sumWindow(indexRows, indexSpan) : null;
     const stockSpan = stockDates.slice(-n);
-    const vni = vniRows.size ? sumWindow(vniRows, stockSpan) : null;
+    // Share of VNI net compares both over the same sessions.
+    const shareSpan = shareDates.slice(-n);
+    const vni = shareSpan.length ? sumWindow(vniRows, shareSpan) : null;
+    const shared = shareSpan.length && stockRows.size ? sumWindow(stockRows, shareSpan) : null;
     const stock = stockRows.size && stockSpan.length ? sumWindow(stockRows, stockSpan) : null;
     const stockReturn = periodReturn(stockCloses, n);
     const vniReturn = periodReturn(stockVniCloses, n);
@@ -158,13 +168,13 @@ export async function getForeignFlow(index: IndexCode, symbol: string | null) {
       partial: dates.length < n || short,
       index: idx,
       stock,
-      shareOfVniNet: stock && vni?.net ? stock.net / vni.net : null,
+      shareOfVniNet: shared && vni?.net ? shared.net / vni.net : null,
       returnVsVni: stockReturn !== null && vniReturn !== null ? stockReturn - vniReturn : null,
     };
   });
   return {
-    index, symbol, stockAsOf, basis: "incl. put-through", latestSession: dates.at(-1) ?? null, windows,
-    daily: dates.slice(-21).map((d) => ({ date: d, net: indexRows.get(d)?.net ?? 0 })).filter(() => indexRows.size > 0),
+    index, symbol, stockAsOf, indexAsOf: indexDates.at(-1) ?? null, basis: "incl. put-through", latestSession: dates.at(-1) ?? null, windows,
+    daily: indexDates.slice(-21).map((d) => ({ date: d, net: indexRows.get(d)?.net ?? 0 })).filter(() => indexRows.size > 0),
   };
 }
 

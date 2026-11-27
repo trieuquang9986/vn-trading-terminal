@@ -143,9 +143,14 @@ async function foreignStock(api: Endpoints, symbol: string) {
   await upsert("foreign_stock_daily", ["symbol", "date"], flowRows(symbol, "symbol", res.data));
 }
 
-async function foreignIndex(api: Endpoints, index: IndexCode) {
+async function foreignIndex(api: Endpoints, index: IndexCode, session: string | null) {
   const res = await api.indexForeign(index, await since("foreign_index_daily", "index_code", index), today());
-  await upsert("foreign_index_daily", ["index_code", "date"], flowRows(index, "index_code", res.data));
+  const rows = flowRows(index, "index_code", res.data);
+  await upsert("foreign_index_daily", ["index_code", "date"], rows);
+  // Published some time after the close: keep the evening job open until today's figure arrives.
+  if (session === today() && !rows.some((r) => r.date === session)) {
+    throw new NotReadyError(`${index} foreign flow for ${session} is not published yet`);
+  }
 }
 
 async function fundamentals(api: Endpoints, symbol: string) {
@@ -206,7 +211,7 @@ export async function runJob(api: Endpoints, job: Job) {
     case "board": return board(api, job);
     case "constituents": return constituents(api, job);
     case "index_history": return indexHistory(api, symbol as IndexCode);
-    case "foreign_index": return foreignIndex(api, symbol as IndexCode);
+    case "foreign_index": return foreignIndex(api, symbol as IndexCode, job.session_date);
     case "listing": return listing(api, symbol);
     case "ohlcv": return ohlcv(api, symbol);
     case "foreign_stock": return foreignStock(api, symbol);

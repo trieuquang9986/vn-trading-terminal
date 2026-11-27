@@ -28,6 +28,7 @@ const dates = (from: string) => {
   return out;
 };
 const log: { path: string; at: number }[] = [];
+let withholdIndexFlow: string | null = null;
 
 function fakeFhsc(url: URL) {
   const p = url.pathname;
@@ -41,7 +42,7 @@ function fakeFhsc(url: URL) {
     const page = Number(q.get("page"));
     return { total: all.length, updated_at, items: all.slice((page - 1) * 50, page * 50).map((symbol) => ({ symbol, name: symbol, price: 100, change_percent: 1, market_cap: 1000, weight_percent: 1 })) };
   }
-  if (p.includes("/trading/foreign/")) return { data: dates(q.get("from")!).map((date) => ({ date, buy: { total: { volume: 2, value: 20 } }, sell: { total: { volume: 1, value: 10 } } })) };
+  if (p.includes("/trading/foreign/")) return { data: dates(q.get("from")!).filter((d) => !(p.includes("/indices/") && d === withholdIndexFlow)).map((date) => ({ date, buy: { total: { volume: 2, value: 20 } }, sell: { total: { volume: 1, value: 10 } } })) };
   if (p.includes("/quotes/")) return bars();
   if (p.endsWith("/listing")) return { listed_shares: 10, outstanding_shares: 10, free_float_pct: 50 };
   if (p.endsWith("/overview")) return { roe: 0.1, pe: 10, industry: { pe: 12 } };
@@ -99,16 +100,30 @@ describe("crawl across days", () => {
     expect(await callsOn("2026-11-27")).toBeLessThanOrEqual(300);
   }, 120_000);
 
+  it("keeps the index flow job open until the day is published", async () => {
+    withholdIndexFlow = "2026-11-30";
+    await tick("2026-11-30T15:00:00");
+    await tick("2026-11-30T15:30:00");
+    const open = `SELECT count(*) AS n FROM crawl_queue WHERE job_type='foreign_index' AND session_date='2026-11-30' AND status='pending' AND retries=0`;
+    expect(await count(open)).toBe(2);
+    expect((await getForeignFlow("VNINDEX", "V01")).indexAsOf).toBe("2026-11-27");
+    withholdIndexFlow = null;
+    await tick("2026-11-30T18:00:00");
+    expect(await count(open)).toBe(0);
+    expect((await getForeignFlow("VNINDEX", "V01")).indexAsOf).toBe("2026-11-30");
+  }, 120_000);
+
   it("moves a requested ticker up the queue", async () => {
     expect(await requestTicker("H369")).toBe("queued");
     expect(await requestTicker("ZZZ")).toBe("unknown");
-    await tick("2026-11-28T08:00:00");
+    await tick("2026-12-01T08:00:00");
     expect(await count(`SELECT count(*) AS n FROM stock_daily WHERE symbol='H369'`)).toBeGreaterThan(200);
   }, 120_000);
 
   it("covers all HOSE, then rotates, without ever exceeding 300 a day", async () => {
-    const days = ["2026-11-28", "2026-11-29", "2026-11-30", "2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04",
-      "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10", "2026-12-11"];
+    const days = ["2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04",
+      "2026-12-05", "2026-12-06", "2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10", "2026-12-11",
+      "2026-12-12", "2026-12-13", "2026-12-14"];
     const progress: string[] = [];
     for (const d of days) {
       await day_(d);

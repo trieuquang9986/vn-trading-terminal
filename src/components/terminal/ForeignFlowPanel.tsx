@@ -6,6 +6,7 @@ interface Sums { buy: number; sell: number; net: number }
 interface Flow {
   latestSession: string | null;
   stockAsOf: string | null;
+  indexAsOf: string | null;
   windows: { sessions: number; partial: boolean; index: Sums | null; stock: Sums | null; shareOfVniNet: number | null; returnVsVni: number | null }[];
   daily: { date: string; net: number }[];
 }
@@ -16,7 +17,7 @@ export default function ForeignFlowPanel({ index, symbol }: { index: IndexCode; 
   const max = Math.max(1, ...(data?.daily.map((d) => Math.abs(d.net)) ?? []));
 
   return (
-    <Panel title="Foreign flow, incl. put-through" actions={data?.latestSession && <span className="badge">to {data.latestSession}</span>}>
+    <Panel title="Foreign flow, incl. put-through">
       {!has && <Status error={error} loading={!data && !error} empty="No foreign flow stored yet." />}
       {data && has && (
         <>
@@ -57,6 +58,7 @@ export default function ForeignFlowPanel({ index, symbol }: { index: IndexCode; 
             </table>
           </div>
           <p className="muted">
+            {data.indexAsOf && `${index} figures are as of ${data.indexAsOf}. `}
             {data.stockAsOf ? `${symbol} rows are as of ${data.stockAsOf}.` : `${symbol} has not been loaded yet.`}
           </p>
           {data.daily.length > 0 && (
