@@ -1,0 +1,33 @@
+{
+  "name": "vn-trading-terminal",
+  "version": "0.1.0",
+  "description": "Vietnam market trading terminal + stock broker site",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "job:probe": "tsx src/jobs/phase0Probe.ts",
+    "job:seed": "tsx src/jobs/phase1Seed.ts",
+    "job:backfill": "tsx src/jobs/phase2Backfill.ts",
+    "job:nightly": "tsx src/jobs/phase3Nightly.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.1",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^6.1.2",
+    "@types/node": "^26.6.11",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.2"
+  },
+  "private": true,
+  "type": "module"
+}
