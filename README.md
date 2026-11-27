@@ -15,9 +15,21 @@ Never commit the key, and never prefix it with `NEXT_PUBLIC_`. `DATABASE_URL` an
 
 `netlify/functions/crawl-schedule.mts` runs every 15 minutes, 08:00–21:45 ICT, on the published deploy only.
 It queues work and wakes `crawl-worker-background`, which is the only path to FHSC (300 calls/day hard stop).
-The pages and API routes read the database only. The first backfill takes about two days.
+The pages and API routes read the database only.
 
-The scheduler calls the worker over the public site URL, so site-wide login protection will block it.
+Coverage is all HOSE tickers (the VNINDEX constituents), in this order (`PRIORITY` in `src/jobs/queue.ts`):
+
+1. Post-close board, constituents, index history and index foreign flow.
+2. VN30 daily refresh, then VN30 first load, then VN30 weekly listing and fundamentals.
+3. Tickers a visitor is looking at that still have missing data.
+4. Rest of HOSE: first load of flow and prices (largest first), then fundamentals.
+5. Rest of HOSE rotation, stalest first: flow and prices every few sessions, fundamentals every 90 days.
+
+On weekdays 80 calls are held back until the evening refresh is done.
+
+Differences from AGENT.md: SMA20/50 and volume SMA20 are computed from stored prices instead of calling
+`/technicals`; `listing` is fetched for VN30 only; the 20-ticker on-demand watchlist is replaced by the
+full universe.
 
 ## Run locally
 
@@ -32,8 +44,6 @@ The scheduler calls the worker over the public site URL, so site-wide login prot
 Database schema: `db/schema.sql`.
 
 ## Check after the first crawl
-
-Nothing here has been run against the live FHSC API yet.
 
     SELECT day, message FROM crawl_log WHERE kind = 'warning' ORDER BY id DESC;
     SELECT job_type, status, count(*), max(last_error) FROM crawl_queue GROUP BY 1, 2;

@@ -5,6 +5,7 @@ import type { IndexCode } from "./Terminal";
 interface Sums { buy: number; sell: number; net: number }
 interface Flow {
   latestSession: string | null;
+  stockAsOf: string | null;
   windows: { sessions: number; partial: boolean; index: Sums | null; stock: Sums | null; shareOfVniNet: number | null; returnVsVni: number | null }[];
   daily: { date: string; net: number }[];
 }
@@ -55,6 +56,9 @@ export default function ForeignFlowPanel({ index, symbol }: { index: IndexCode; 
               </tbody>
             </table>
           </div>
+          <p className="muted">
+            {data.stockAsOf ? `${symbol} rows are as of ${data.stockAsOf}.` : `${symbol} has not been loaded yet.`}
+          </p>
           {data.daily.length > 0 && (
             <>
               <div className="flowchart" role="img" aria-label={`${index} daily foreign net value, last ${data.daily.length} sessions`}>

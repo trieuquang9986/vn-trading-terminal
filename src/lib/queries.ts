@@ -3,6 +3,7 @@ import { query } from "./db";
 import type { IndexCode } from "./fhsc/endpoints";
 import { pointContributions, type Member } from "./scoring/indexImpact";
 import { alignToCalendar, periodReturn } from "./scoring/series";
+import { addDays } from "./time";
 import { faScorecard, totalHealth, type FaMetrics } from "./scoring/faScore";
 import { taScorecard } from "./scoring/taScore";
 
@@ -135,20 +136,26 @@ export async function getForeignFlow(index: IndexCode, symbol: string | null) {
   const indexRows = toMap(await flowRows("foreign_index_daily", "index_code", index));
   const vniRows = index === "VNINDEX" ? indexRows : toMap(await flowRows("foreign_index_daily", "index_code", "VNINDEX"));
   const stockRows = symbol ? toMap(await flowRows("foreign_stock_daily", "symbol", symbol)) : new Map<string, FlowRow>();
-  const vniCloses = alignToCalendar(dates, await closeMap("index_daily", "index_code", "VNINDEX"));
   const stockCloseMap = symbol ? await closeMap("stock_daily", "symbol", symbol) : new Map<string, number>();
-  const stockCloses = alignToCalendar(dates, stockCloseMap);
+  const stockAsOf = [...stockCloseMap.keys()].sort().at(-1) ?? null;
+  const stockDates = stockAsOf ? dates.filter((d) => d <= stockAsOf) : [];
+  const stockCloses = alignToCalendar(stockDates, stockCloseMap);
+  const stockVniCloses = alignToCalendar(stockDates, await closeMap("index_daily", "index_code", "VNINDEX"));
+  const firstFlow = [...stockRows.keys()].sort()[0];
 
   const windows = FLOW_WINDOWS.map((n) => {
     const span = dates.slice(-n);
     const idx = indexRows.size ? sumWindow(indexRows, span) : null;
-    const vni = vniRows.size ? sumWindow(vniRows, span) : null;
-    const stock = stockRows.size ? sumWindow(stockRows, span) : null;
+    const stockSpan = stockDates.slice(-n);
+    const vni = vniRows.size ? sumWindow(vniRows, stockSpan) : null;
+    const stock = stockRows.size && stockSpan.length ? sumWindow(stockRows, stockSpan) : null;
     const stockReturn = periodReturn(stockCloses, n);
-    const vniReturn = periodReturn(vniCloses, n);
+    const vniReturn = periodReturn(stockVniCloses, n);
+    // Flag a ticker whose stored flow starts well after the window does.
+    const short = stock !== null && firstFlow > addDays(stockSpan[0], 14);
     return {
       sessions: n,
-      partial: dates.length < n,
+      partial: dates.length < n || short,
       index: idx,
       stock,
       shareOfVniNet: stock && vni?.net ? stock.net / vni.net : null,
@@ -156,7 +163,7 @@ export async function getForeignFlow(index: IndexCode, symbol: string | null) {
     };
   });
   return {
-    index, symbol, basis: "incl. put-through", latestSession: dates.at(-1) ?? null, windows,
+    index, symbol, stockAsOf, basis: "incl. put-through", latestSession: dates.at(-1) ?? null, windows,
     daily: dates.slice(-21).map((d) => ({ date: d, net: indexRows.get(d)?.net ?? 0 })).filter(() => indexRows.size > 0),
   };
 }

@@ -3,9 +3,9 @@ import { logWarning, query, upsert } from "../lib/db";
 import { INDEX_CODES, type Bar, type Endpoints, type FlowBar, type IndexCode } from "../lib/fhsc/endpoints";
 import { vndFactor } from "../lib/fhsc/units";
 import { normalizeFundamentals } from "../lib/scoring/faScore";
-import { obv } from "../lib/scoring/series";
+import { obv, sma } from "../lib/scoring/series";
 import { addDays, ictDateToUnix, ictParts, unixToIctDate } from "../lib/time";
-import { enqueue, type Job } from "./queue";
+import { enqueue, PRIORITY, type Job, type NewJob } from "./queue";
 
 export const HISTORY_DAYS = 380;
 
@@ -23,11 +23,15 @@ async function since(table: string, keyCol: string, key: string) {
   return row.max && row.min && row.min <= addDays(full, 30) ? addDays(row.max, -10) : full;
 }
 
+/** Latest date whose session can be complete. Today's partial figures are never stored as history. */
+const lastClosed = () => (ictParts().hour >= 15 ? today() : addDays(today(), -1));
+
 const bars = (series: Bar[] | undefined) =>
-  (series ?? []).filter((b) => b.c != null).map((b) => ({ ...b, date: unixToIctDate(b.t) })).sort((a, b) => a.t - b.t);
+  (series ?? []).filter((b) => b.c != null).map((b) => ({ ...b, date: unixToIctDate(b.t) }))
+    .filter((b) => b.date <= lastClosed()).sort((a, b) => a.t - b.t);
 
 const flowRows = (key: string, keyCol: string, data: FlowBar[]) =>
-  data.map((d) => ({
+  data.filter((d) => d.date <= lastClosed()).map((d) => ({
     [keyCol]: key, date: d.date,
     // `total` only: matched/put_through are null, so every figure includes put-through.
     buy_vol: d.buy.total.volume, buy_val: d.buy.total.value,
@@ -42,11 +46,8 @@ async function indexHistory(api: Endpoints, index: IndexCode) {
   await upsert("index_daily", ["index_code", "date"], rows.map((b) => ({
     index_code: index, date: b.date, open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v,
   })));
-  // The trading calendar is derived from VNINDEX history. Today's bar only counts after the close.
-  if (index === "VNINDEX") {
-    const done = ictParts().hour >= 15 ? today() : addDays(today(), -1);
-    await upsert("calendar", ["date"], rows.filter((b) => b.date <= done).map((b) => ({ date: b.date })));
-  }
+  // The trading calendar is derived from VNINDEX history.
+  if (index === "VNINDEX") await upsert("calendar", ["date"], rows.map((b) => ({ date: b.date })));
 }
 
 /** S1. Verifies the board is post-close, then queues the rest of the night's work. */
@@ -78,7 +79,7 @@ async function board(api: Endpoints, job: Job) {
   await enqueueNightly(expected);
 }
 
-/** S2, all pages. VN30 membership drives the per-ticker jobs. */
+/** S2, all pages. VN30 membership sets priority; VNINDEX membership is the HOSE universe. */
 async function constituents(api: Endpoints, job: Job) {
   const index = job.symbol as IndexCode;
   const items = [];
@@ -90,6 +91,9 @@ async function constituents(api: Endpoints, job: Job) {
     if (!res.items.length || items.length >= res.total) break;
   }
   if (!items.length) throw new Error(`No constituents for ${index}`);
+  // Membership is usable even while prices are intraday, so history loading starts at once.
+  const symbols = items.map((i) => i.symbol);
+  await (index === "VN30" ? enqueueVn30(symbols) : enqueueUniverse(symbols));
   const stamp = updatedAt ? ictParts(new Date(updatedAt)) : null;
   if (stamp && stamp.date === ictParts().date && stamp.hour >= 9 && stamp.hour < 15 && ![0, 6].includes(stamp.weekday)) {
     throw new NotReadyError("Constituent prices are intraday");
@@ -103,8 +107,8 @@ async function constituents(api: Endpoints, job: Job) {
       index_code: index, symbol: i.symbol, session_date: session, name: i.name, price: i.price,
       change_percent: i.change_percent, market_cap: i.market_cap, weight_percent: i.weight_percent,
     })));
+    if (index === "VN30") await enqueueVn30Refresh(symbols, session);
   }
-  if (index === "VN30") await enqueueTickers(items.map((i) => i.symbol), 5);
 }
 
 async function listing(api: Endpoints, symbol: string) {
@@ -115,36 +119,23 @@ async function listing(api: Endpoints, symbol: string) {
   }]);
 }
 
-async function refreshObv(symbol: string) {
+/** SMA20, SMA50, volume SMA20 and OBV from stored bars, which saves a /technicals call per ticker. */
+async function refreshDerived(symbol: string) {
   const rows = await query<{ date: string; close: number; volume: number }>(
-    `SELECT date::text, close, coalesce(volume, 0) AS volume FROM stock_daily WHERE symbol = $1 ORDER BY date`, [symbol]);
-  const series = obv(rows.map((r) => r.close), rows.map((r) => r.volume));
-  await upsert("stock_technicals_daily", ["symbol", "date"], rows.map((r, i) => ({ symbol, date: r.date, obv: series[i] })));
+    `SELECT date::text, close, coalesce(volume, 0) AS volume FROM stock_daily WHERE symbol = $1 AND close IS NOT NULL ORDER BY date`, [symbol]);
+  const closes = rows.map((r) => r.close);
+  const volumes = rows.map((r) => r.volume);
+  const [onBalance, sma20, sma50, volume20] = [obv(closes, volumes), sma(closes, 20), sma(closes, 50), sma(volumes, 20)];
+  await upsert("stock_technicals_daily", ["symbol", "date"], rows.map((r, i) => ({
+    symbol, date: r.date, close: r.close, sma20: sma20[i], sma50: sma50[i], volume_sma20: volume20[i], obv: onBalance[i],
+  })));
 }
 
 async function ohlcv(api: Endpoints, symbol: string) {
   const from = await since("stock_daily", "symbol", symbol);
   const res = await api.stockHistory(symbol, ictDateToUnix(from), ictDateToUnix(addDays(today(), 1)));
   await upsert("stock_daily", ["symbol", "date"], bars(res.series).map((b) => ({ symbol, date: b.date, close: b.c, volume: b.v })));
-  await refreshObv(symbol);
-}
-
-async function technicals(api: Endpoints, symbol: string) {
-  const [row] = await query<{ max: string | null }>(
-    `SELECT max(date)::text AS max FROM stock_technicals_daily WHERE symbol = $1 AND sma20 IS NOT NULL`, [symbol]);
-  const from = row.max ? addDays(row.max, -10) : addDays(today(), -HISTORY_DAYS);
-  const res = await api.technicals(symbol, from, today());
-  const byDate = new Map<string, Record<string, unknown>>();
-  const at = (date: string) => {
-    if (!byDate.has(date)) byDate.set(date, { symbol, date, close: null, sma20: null, sma50: null, volume_sma20: null });
-    return byDate.get(date)!;
-  };
-  for (const p of res.prices ?? []) at(p.date).close = p.close;
-  for (const series of res.indicators ?? []) {
-    const column = series.indicator === "VOLUME_SMA" ? "volume_sma20" : series.params === "50" ? "sma50" : "sma20";
-    for (const point of series.data) at(point.date)[column] = point.value ?? null;
-  }
-  await upsert("stock_technicals_daily", ["symbol", "date"], [...byDate.values()]);
+  await refreshDerived(symbol);
 }
 
 async function foreignStock(api: Endpoints, symbol: string) {
@@ -218,47 +209,96 @@ export async function runJob(api: Endpoints, job: Job) {
     case "foreign_index": return foreignIndex(api, symbol as IndexCode);
     case "listing": return listing(api, symbol);
     case "ohlcv": return ohlcv(api, symbol);
-    case "technicals": return technicals(api, symbol);
     case "foreign_stock": return foreignStock(api, symbol);
     case "fundamentals": return fundamentals(api, symbol);
     default: throw new Error(`Unknown job type ${job.job_type}`);
   }
 }
 
-/** Phase 1: reference data. VN30 constituents then queue the per-ticker backfill. */
+/** Phase 1: reference data. The constituent lists then queue the per-ticker backfill. */
 export async function enqueueSeed() {
+  const job = (type: string, priority: number, symbol?: string) => ({ type, symbol, period: type === "probe" ? "once" : "seed", priority });
   await enqueue([
-    { type: "probe", period: "once", priority: 0 },
-    { type: "index_history", symbol: "VNINDEX", period: "seed", priority: 1 },
-    { type: "index_history", symbol: "VN30", period: "seed", priority: 1 },
-    { type: "constituents", symbol: "VN30", period: "seed", priority: 2 },
-    { type: "constituents", symbol: "VNINDEX", period: "seed", priority: 3 },
-    { type: "foreign_index", symbol: "VNINDEX", period: "seed", priority: 4 },
-    { type: "foreign_index", symbol: "VN30", period: "seed", priority: 4 },
+    job("probe", PRIORITY.BOARD),
+    ...INDEX_CODES.map((i) => job("index_history", PRIORITY.MARKET, i)),
+    job("constituents", PRIORITY.MARKET, "VN30"),
+    job("constituents", PRIORITY.MARKET, "VNINDEX"),
+    ...INDEX_CODES.map((i) => job("foreign_index", PRIORITY.INDEX_FLOW, i)),
   ]);
 }
 
-/** Phase 2 / Phase 4: first-time history for a set of tickers. */
-export async function enqueueTickers(symbols: string[], priority: number) {
-  const jobs = [];
-  for (const [offset, type] of ["listing", "ohlcv", "technicals", "foreign_stock", "fundamentals"].entries()) {
-    for (const symbol of symbols) jobs.push({ type, symbol, period: "seed", priority: priority + offset });
-  }
-  await enqueue(jobs);
+const seed = (type: string, symbol: string, priority: number): NewJob => ({ type, symbol, period: "seed", priority });
+
+/** First load for VN30: flow and prices for all 30, then listing (index weights), then fundamentals. */
+async function enqueueVn30(symbols: string[]) {
+  await enqueue(["foreign_stock", "ohlcv", "listing", "fundamentals"].flatMap((type, step) =>
+    symbols.map((s) => seed(type, s, PRIORITY.VN30_SEED + step))));
 }
 
-/** Phase 3 priorities: P0 board/constituents/index history, P1 index flow, P2 tickers, P3 weekly refresh. */
-export async function enqueueNightly(session: string) {
-  const tickers = await query<{ symbol: string }>(
-    `SELECT symbol FROM constituent_snap WHERE index_code = 'VN30'
-       AND session_date = (SELECT max(session_date) FROM constituent_snap WHERE index_code = 'VN30')
-     UNION SELECT symbol FROM watchlist ORDER BY symbol`);
-  const job = (type: string, symbol: string, priority: number, period = session) => ({ type, symbol, session, period, priority });
+/**
+ * First load for the rest of HOSE, largest first: flow and prices for everyone, then fundamentals.
+ * VN30 names are included; their higher priority wins.
+ */
+async function enqueueUniverse(symbols: string[]) {
   await enqueue([
-    ...INDEX_CODES.map((i) => job("constituents", i, 1)),
-    ...INDEX_CODES.map((i) => job("index_history", i, 1)),
-    ...INDEX_CODES.map((i) => job("foreign_index", i, 2)),
-    ...tickers.flatMap((t) => ["foreign_stock", "ohlcv", "technicals"].map((type) => job(type, t.symbol, 3))),
-    ...tickers.flatMap((t) => ["listing", "fundamentals"].map((type) => job(type, t.symbol, 40, `w${week()}`))),
+    ...symbols.flatMap((s) => [seed("foreign_stock", s, PRIORITY.HOSE_SEED), seed("ohlcv", s, PRIORITY.HOSE_SEED)]),
+    ...symbols.map((s) => seed("fundamentals", s, PRIORITY.HOSE_SEED_FA)),
+  ]);
+}
+
+async function enqueueVn30Refresh(symbols: string[], session: string) {
+  const job = (type: string, symbol: string, priority: number, period = session) => ({ type, symbol, session, period, priority });
+  // Weekly data that is already queued, or was fetched in the last 6 days, is not requested again.
+  const recent = new Set((await query<{ key: string }>(
+    `SELECT job_type || ':' || symbol AS key FROM crawl_queue WHERE job_type IN ('listing', 'fundamentals')
+       AND (status = 'pending' OR (status = 'done' AND updated_at > now() - interval '6 days'))`)).map((r) => r.key));
+  await enqueue([
+    ...symbols.flatMap((s) => ["foreign_stock", "ohlcv"].map((type) => job(type, s, PRIORITY.VN30_REFRESH))),
+    ...symbols.flatMap((s) => ["listing", "fundamentals"]
+      .filter((type) => !recent.has(`${type}:${s}`))
+      .map((type) => job(type, s, PRIORITY.VN30_WEEKLY, `w${week()}`))),
+  ]);
+}
+
+/** Phase 3 market-wide jobs. VN30 ticker refresh is queued once tonight's VN30 list is stored. */
+async function enqueueNightly(session: string) {
+  const job = (type: string, symbol: string, priority: number) => ({ type, symbol, session, period: session, priority });
+  await enqueue([
+    ...INDEX_CODES.map((i) => job("constituents", i, PRIORITY.MARKET)),
+    ...INDEX_CODES.map((i) => job("index_history", i, PRIORITY.MARKET)),
+    ...INDEX_CODES.map((i) => job("foreign_index", i, PRIORITY.INDEX_FLOW)),
+  ]);
+}
+
+const REFRESH_BATCH = 20;
+const FA_MAX_AGE_DAYS = 90;
+
+/** Rotation for non-VN30 HOSE: keeps a small batch queued, stalest first. Runs only on spare budget. */
+export async function enqueueRotation() {
+  const [latest] = await query<{ session: string | null }>(`SELECT max(date)::text AS session FROM calendar`);
+  if (!latest.session) return;
+  const stale = (jobType: string, types: string[], cutoff: string, params: unknown[]) => query<{ symbol: string }>(
+    `WITH universe AS (
+       SELECT symbol FROM constituent_snap WHERE index_code = 'VNINDEX'
+         AND session_date = (SELECT max(session_date) FROM constituent_snap WHERE index_code = 'VNINDEX')
+       EXCEPT SELECT symbol FROM constituent_snap WHERE index_code = 'VN30'
+         AND session_date = (SELECT max(session_date) FROM constituent_snap WHERE index_code = 'VN30'))
+     SELECT u.symbol FROM universe u
+     LEFT JOIN LATERAL (SELECT max(updated_at) AS at FROM crawl_queue
+       WHERE symbol = u.symbol AND job_type = '${jobType}' AND status = 'done') d ON true
+     WHERE NOT EXISTS (SELECT 1 FROM crawl_queue p WHERE p.symbol = u.symbol AND p.status = 'pending' AND p.job_type = ANY($1))
+       AND (d.at IS NULL OR d.at < ${cutoff})
+     ORDER BY d.at NULLS FIRST, u.symbol
+     LIMIT greatest(0, ${REFRESH_BATCH} - (SELECT count(DISTINCT symbol) FROM crawl_queue WHERE status = 'pending' AND job_type = ANY($1)
+       AND priority IN (${PRIORITY.HOSE_REFRESH}, ${PRIORITY.HOSE_REFRESH_FA})))`,
+    [types, ...params]);
+  const job = (type: string, symbol: string, priority: number) => ({ type, symbol, period: `r${latest.session}`, priority });
+
+  const prices = await stale("foreign_stock", ["foreign_stock", "ohlcv"],
+    `($2::date + time '15:00') AT TIME ZONE 'Asia/Ho_Chi_Minh'`, [latest.session]);
+  const funds = await stale("fundamentals", ["fundamentals"], `now() - make_interval(days => $2)`, [FA_MAX_AGE_DAYS]);
+  await enqueue([
+    ...prices.flatMap(({ symbol }) => [job("foreign_stock", symbol, PRIORITY.HOSE_REFRESH), job("ohlcv", symbol, PRIORITY.HOSE_REFRESH)]),
+    ...funds.map(({ symbol }) => job("fundamentals", symbol, PRIORITY.HOSE_REFRESH_FA)),
   ]);
 }

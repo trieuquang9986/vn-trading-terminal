@@ -6,14 +6,12 @@ interface Health {
   ta: Scorecard; fa: Scorecard; total: { score: number | null; partial: boolean };
   asOf: { price: string | null; fundamentals: string | null };
   hasData: boolean;
-  request: "queued" | "already-queued" | "unknown" | "limit" | null;
+  request: "queued" | "unknown" | null;
 }
 
 const REQUEST_TEXT = {
-  queued: "Queued for the background crawler. Check back later.",
-  "already-queued": "Already in the crawl queue. Check back later.",
-  unknown: "This ticker is not in the stored HOSE list.",
-  limit: "The on-demand watchlist is full for now.",
+  queued: "Still loading. This ticker has been moved up the queue; check back later.",
+  unknown: "Not in the stored HOSE list.",
 };
 
 const show = (m: ScoredMetric) =>

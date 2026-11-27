@@ -19,6 +19,15 @@ export function maxDrawdown(closes: number[], n: number): number | null {
   return worst;
 }
 
+/** Simple moving average; null until `n` values exist. */
+export function sma(values: number[], n: number): (number | null)[] {
+  let sum = 0;
+  return values.map((v, i) => {
+    sum += v - (i >= n ? values[i - n] : 0);
+    return i >= n - 1 ? sum / n : null;
+  });
+}
+
 /** Cumulative on-balance volume, OBV_0 = 0. */
 export function obv(closes: number[], volumes: number[]): number[] {
   const out: number[] = [];

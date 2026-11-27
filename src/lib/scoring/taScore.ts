@@ -64,7 +64,7 @@ export interface TaInput {
   closes: number[];
   volumes: number[];
   vniCloses: number[];
-  /** close/sma20/sma50 must share one unit (all from /technicals). */
+  /** close/sma20/sma50 must share one unit (all from the same price series). */
   technicals: { close: number | null; sma20: number | null; sma50: number | null; volumeSma20: number | null; volume: number | null };
 }
 
