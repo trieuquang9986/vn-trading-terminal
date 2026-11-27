@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import FireAntWidget from "./FireAntWidget";
 import { bn, bnSigned, num, Panel, pct, signed, Status, tone, useApi } from "./shared";
 import type { IndexCode } from "./Terminal";
 import { treemap } from "./treemap";
@@ -63,6 +64,10 @@ export default function IndexBoardHeatmap({ index, onSelect }: { index: IndexCod
           {data.returns.map((r) => <div key={r.label}><dt>{r.label}</dt><dd className={tone(r.value)}>{pct(r.value)}</dd></div>)}
         </dl>
       )}
+      <figure className="indexchart">
+        <FireAntWidget id="fan-quote-index" symbol={index} dark />
+        <figcaption className="muted">{index} line chart by FireAnt.</figcaption>
+      </figure>
       {tiles.length > 0 && (
         <>
           <div className="heatmap" ref={ref}>

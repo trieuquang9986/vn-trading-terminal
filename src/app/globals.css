@@ -60,7 +60,9 @@ th { color: var(--muted); font-weight: 400; }
 .flowchart div { flex: 1; position: relative; border-radius: 2px; }
 .flowchart div:hover { background: var(--line); }
 .flowchart i { position: absolute; left: 0; right: 0; }
-#fireant { min-height: 300px; width: 100%; background: #fff; border-radius: 6px; overflow: hidden; }
+.fireant { min-height: 300px; width: 100%; background: #fff; border-radius: 6px; overflow: hidden; }
+.fireant.dark { filter: invert(0.92) hue-rotate(180deg); }
+.indexchart { margin: 0 0 12px; }
 .about section { padding: 24px 0; border-bottom: 1px solid var(--line); }
 .about h2 { margin-bottom: 12px; }
 .notice { margin: 16px 0 0; border: 1px dashed var(--warn); color: var(--warn); border-radius: 6px; padding: 8px 12px; }
