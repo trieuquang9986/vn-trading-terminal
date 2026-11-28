@@ -1,6 +1,7 @@
 /** Read side for the API routes. Reads the database only. */
 import { query } from "./db";
 import type { IndexCode } from "./fhsc/endpoints";
+import { exGroup, VIN_GROUP } from "./scoring/exGroup";
 import { pointContributions, type Member } from "./scoring/indexImpact";
 import { alignToCalendar, periodReturn } from "./scoring/series";
 import { addDays } from "./time";
@@ -69,11 +70,23 @@ export async function getBoard(index: IndexCode) {
   const prior = volumes.filter((v) => v.date < (row?.date ?? volumes[0]?.date ?? "")).slice(0, 20);
   const volumeAvg20 = prior.length === 20 ? prior.reduce((s, v) => s + v.volume, 0) / 20 : null;
 
-  const snap = await members(index, 1);
+  // The prior snapshot, when there is one, supplies the weights for the ex-Vin figure.
+  const snap = await members(index, 2);
   const latest = snap.bySession.get(snap.dates.at(-1) ?? "") ?? [];
   const totalCap = latest.reduce((s, m) => s + (m.marketCap ?? 0), 0);
+  // Only when the board and the constituent snapshot describe the same session.
+  let exVin = null;
+  const { date, indexValue, change } = (row ?? {}) as { date?: string; indexValue?: number | null; change?: number | null };
+  if (date && date === snap.dates.at(-1) && indexValue != null && change != null) {
+    const result = exGroup(index, indexValue - change, latest, VIN_GROUP, snap.bySession.get(snap.dates.at(-2) ?? ""));
+    if (result) {
+      const { contributions: _, ...figures } = result;
+      exVin = figures;
+    }
+  }
   return {
     index,
+    exVin,
     board: row ?? null,
     returns,
     history,
@@ -88,7 +101,7 @@ export async function getBoard(index: IndexCode) {
   };
 }
 
-export async function getMovers(index: IndexCode, sessions: 1 | 5 | 21) {
+export async function getMovers(index: IndexCode, sessions: 1 | 5 | 21, withoutVin = false) {
   // One extra snapshot supplies the prior-session weights.
   const { dates, bySession } = await members(index, sessions + 1);
   const used = dates.slice(-sessions);
@@ -105,13 +118,18 @@ export async function getMovers(index: IndexCode, sessions: 1 | 5 | 21) {
     const board = boards.get(date);
     if (!board || board.close == null || board.change == null) continue;
     const previous = dates[dates.indexOf(date) - 1];
-    const result = pointContributions(index, board.close - board.change, bySession.get(date) ?? [], previous ? bySession.get(previous) : undefined);
-    for (const [symbol, points] of result.points) {
+    const prevClose = board.close - board.change;
+    const today = bySession.get(date) ?? [];
+    const prior = previous ? bySession.get(previous) : undefined;
+    const result = pointContributions(index, prevClose, today, prior);
+    const ex = withoutVin ? exGroup(index, prevClose, today, VIN_GROUP, prior) : null;
+    if (withoutVin && !ex) continue;
+    for (const [symbol, points] of ex?.contributions ?? result.points) {
       totals.set(symbol, (totals.get(symbol) ?? 0) + points);
       explained += points;
     }
     result.missing.forEach((s) => missing.add(s));
-    indexChange += board.change;
+    indexChange += ex ? ex.points : board.change;
     counted++;
   }
   // A daily % move is only meaningful for the single-session view.
@@ -119,7 +137,7 @@ export async function getMovers(index: IndexCode, sessions: 1 | 5 | 21) {
   const ranked = [...totals].map(([symbol, points]) => ({ symbol, points, changePercent: sessions === 1 ? lastMoves.get(symbol) ?? null : null })).sort((a, b) => b.points - a.points);
   const residual = indexChange - explained;
   const warnings: string[] = [];
-  if (index === "VN30" && counted && Math.abs(residual) > 0.05) {
+  if (index === "VN30" && !withoutVin && counted && Math.abs(residual) > 0.05) {
     warnings.push(`Unexplained ${residual.toFixed(2)} pts between constituent sum and index change.`);
   }
   if (missing.size) warnings.push(`No weight data for ${[...missing].slice(0, 8).join(", ")}${missing.size > 8 ? "…" : ""}.`);

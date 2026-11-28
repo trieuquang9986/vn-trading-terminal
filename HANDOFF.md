@@ -27,6 +27,15 @@ The UI follows a "DES.md" design reference supplied by the owner (not in this re
   19 with fundamentals; 186 jobs done, 1,159 pending.
 - Estimated, not measured: all HOSE prices and flow around 1 Dec, fundamentals around 7 Dec.
 
+## Ex-Vin toggle ("Loại nhóm Vin")
+
+- Removes VIC, VHM, VPL, VRE (`VIN_GROUP` in `src/lib/scoring/exGroup.ts`; VPL is not in VN30) and reweights
+  the rest: their own daily moves, weighted by prior-session weights. Not point subtraction.
+- Latest session only. Affects the index cards, a summary strip, the heatmap and the 1D contribution chart.
+  Area chart, session statistics and foreign flow stay full-index.
+- No extra FHSC calls or tables. VN30 reuses the capped weights pro rata (no re-capping).
+- Possible next step: an ex-Vin history line, compounding daily returns (past weights would be estimates).
+
 ## Past incident: "This page couldn't load"
 
 A third-party chart script running inside the React tree could take the whole page down (reproduced with a

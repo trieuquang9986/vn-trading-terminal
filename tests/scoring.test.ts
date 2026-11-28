@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { treemap } from "../src/components/terminal/treemap";
 import { vndFactor } from "../src/lib/fhsc/units";
+import { exGroup } from "../src/lib/scoring/exGroup";
 import { faScorecard, totalHealth, type FaMetrics } from "../src/lib/scoring/faScore";
 import { capWeights, freeFloatBucket, pointContributions } from "../src/lib/scoring/indexImpact";
 import { maxDrawdown, obv, periodReturn } from "../src/lib/scoring/series";
@@ -13,6 +14,27 @@ describe("series", () => {
     expect(periodReturn([100, 110], 1)).toBeCloseTo(0.1);
     expect(periodReturn([100], 1)).toBeNull();
     expect(maxDrawdown([100, 120, 90, 130], 3)).toBeCloseTo(-0.25);
+  });
+});
+
+describe("index without a group", () => {
+  const member = (symbol: string, marketCap: number, changePercent: number) => ({ symbol, price: 100, marketCap, changePercent });
+  // Prior caps 300 / 500 / 200: the group is 30% of the index.
+  const today = [member("VIC", 330, 10), member("AAA", 510, 2), member("BBB", 196, -2)];
+
+  it("reweights the remaining stocks instead of only subtracting points", () => {
+    const ex = exGroup("VNINDEX", 1000, today, ["VIC"])!;
+    expect(ex.groupWeight).toBeCloseTo(0.3);
+    expect(ex.groupPoints).toBeCloseTo(30);
+    expect(ex.changePercent).toBeCloseTo((500 * 2 - 200 * 2) / 700);
+    expect(ex.points).toBeCloseTo(1000 * ex.changePercent / 100);
+    expect([...ex.contributions.keys()]).toEqual(["AAA", "BBB"]);
+    expect([...ex.contributions.values()].reduce((s, x) => s + x, 0)).toBeCloseTo(ex.points);
+  });
+
+  it("gives no figure when the group is absent or lacks a move", () => {
+    expect(exGroup("VNINDEX", 1000, today, ["ZZZ"])).toBeNull();
+    expect(exGroup("VNINDEX", 1000, [{ ...today[0], changePercent: null }, today[1]], ["VIC"])).toBeNull();
   });
 });
 

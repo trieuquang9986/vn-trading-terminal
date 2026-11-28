@@ -13,7 +13,7 @@ function Sparkline({ values, className }: { values: number[]; className: string 
   );
 }
 
-export default function IndexCard({ name, data, active, onSelect }: { name: string; data?: BoardData; active: boolean; onSelect: () => void }) {
+export default function IndexCard({ name, data, active, exVin, onSelect }: { name: string; data?: BoardData; active: boolean; exVin: boolean; onSelect: () => void }) {
   const b = data?.board;
   const history = data?.history ?? [];
   const trend = history.length > 1 ? history.at(-1)! - history[0] : null;
@@ -23,6 +23,7 @@ export default function IndexCard({ name, data, active, onSelect }: { name: stri
         <span className="cardname">{name}</span>
         <strong className={tone(b?.change)}>{num(b?.indexValue ?? data?.history.at(-1))}</strong>
         <span className={tone(b?.change)}>{b ? `${signed(b.change)} (${signed(b.changePercent)}%)` : "Chưa có dữ liệu chỉ số"}</span>
+        {exVin && data?.exVin && <span className={tone(data.exVin.changePercent)}>Không Vin: <b>{signed(data.exVin.changePercent)}%</b></span>}
       </span>
       <span className="sparkwrap" title="60 phiên gần nhất">
         <Sparkline values={history} className={tone(trend)} />

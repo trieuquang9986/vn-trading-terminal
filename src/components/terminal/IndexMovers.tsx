@@ -9,23 +9,25 @@ interface Movers { requested: number; counted: number; gainers: Mover[]; losers:
 const PER_SIDE = 9;
 const PLOT = 100; // px for the largest bar on either side
 
-export default function IndexMovers({ index, onSelect }: { index: IndexCode; onSelect: (s: string) => void }) {
-  const [sessions, setSessions] = useState<number>(1);
-  const { data, error } = useApi<Movers>(`/api/movers?index=${index}&sessions=${sessions}`);
+export default function IndexMovers({ index, onSelect, exVin }: { index: IndexCode; onSelect: (s: string) => void; exVin: boolean }) {
+  const [chosen, setSessions] = useState<number>(1);
+  // Ex-Vin figures cover the latest session only.
+  const sessions = exVin ? 1 : chosen;
+  const { data, error } = useApi<Movers>(`/api/movers?index=${index}&sessions=${sessions}${exVin ? "&exVin=1" : ""}`);
   // Most negative on the left, most positive on the right.
   const bars = data ? [...data.losers.slice(0, PER_SIDE), ...data.gainers.slice(0, PER_SIDE).reverse()] : [];
   const max = Math.max(0.01, ...bars.map((m) => Math.abs(m.points)));
 
   return (
     <Panel
-      title={`${INDEX_NAMES[index]} · Đóng góp điểm số`}
+      title={`${INDEX_NAMES[index]}${exVin ? " không gồm Vin" : ""} · Đóng góp điểm số`}
       meta={data?.counted ? (
         <>
           <span className={tone(data.indexChange)}>Ròng {signed(data.indexChange)} điểm</span>
           {data.counted < data.requested && <span className="badge warn">chưa đủ {data.counted}/{data.requested}</span>}
         </>
       ) : null}
-      actions={<Segmented label="Khoảng thời gian" value={sessions} onChange={setSessions} options={[[1, "1D"], [5, "5D"], [21, "21D"]]} />}
+      actions={exVin ? <span className="badge">1D</span> : <Segmented label="Khoảng thời gian" value={sessions} onChange={setSessions} options={[[1, "1D"], [5, "5D"], [21, "21D"]]} />}
     >
       {!data?.counted && <Status error={error} loading={!data && !error} empty="Chưa có dữ liệu thành phần chỉ số." />}
       {data && data.counted > 0 && (

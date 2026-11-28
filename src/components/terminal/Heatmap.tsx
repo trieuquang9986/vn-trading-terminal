@@ -18,11 +18,12 @@ const BUCKETS: { label: string; match: (c: number) => boolean; bg: string; fg: s
 ];
 const bucket = (c: number | null) => (c == null ? { bg: "#e4e6ea", fg: "#30343b" } : BUCKETS.find((b) => b.match(c))!);
 
-export default function Heatmap({ index, data, error, onSelect }: { index: IndexCode; data?: BoardData; error?: string; onSelect: (s: string) => void }) {
+export default function Heatmap({ index, data, error, onSelect, exclude }: { index: IndexCode; data?: BoardData; error?: string; onSelect: (s: string) => void; exclude?: string[] }) {
   const ref = useRef<HTMLDivElement>(null);
   // The treemap takes whatever height the row gives it (at least the CSS minimum), so no gap is left below.
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const tiles = (data?.constituents ?? []).filter((t) => (t.weight ?? 0) > 0)
+  const members = (data?.constituents ?? []).filter((t) => !exclude?.includes(t.symbol));
+  const tiles = members.filter((t) => (t.weight ?? 0) > 0)
     .sort((a, b) => b.weight! - a.weight!).slice(0, MAX_TILES);
 
   useEffect(() => {
@@ -35,9 +36,9 @@ export default function Heatmap({ index, data, error, onSelect }: { index: Index
 
   return (
     <Panel
-      title={`Bản đồ nhiệt ${INDEX_NAMES[index]}`}
+      title={`Bản đồ nhiệt ${INDEX_NAMES[index]}${exclude ? " (không gồm Vin)" : ""}`}
       meta={data?.heatmapDate && <span className="muted">{data.heatmapDate}</span>}
-      actions={<span className="muted">Quy mô = tỷ trọng chỉ số{data && data.constituents.length > MAX_TILES ? ` · ${MAX_TILES} mã lớn nhất` : ""}</span>}
+      actions={<span className="muted">Quy mô = tỷ trọng chỉ số{members.length > MAX_TILES ? ` · ${MAX_TILES} mã lớn nhất` : ""}</span>}
     >
       {!tiles.length && <Status error={error} loading={!data && !error} empty="Chưa có dữ liệu thành phần chỉ số." />}
       {tiles.length > 0 && (

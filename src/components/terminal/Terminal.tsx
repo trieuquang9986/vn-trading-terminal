@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import TopBar from "../layout/TopBar";
 import BrokerHero from "../marketing/BrokerHero";
 import ChartPanel from "./ChartPanel";
+import ExVinBanner from "./ExVinBanner";
 import ForeignFlowPanel from "./ForeignFlowPanel";
 import Heatmap from "./Heatmap";
 import IndexCard from "./IndexCard";
@@ -10,6 +11,7 @@ import IndexMovers from "./IndexMovers";
 import SessionStats from "./SessionStats";
 import { useApi } from "./shared";
 import { INDEX_NAMES, type BoardData, type FlowData, type IndexCode } from "./types";
+import { VIN_GROUP } from "../../lib/scoring/exGroup";
 
 export default function Terminal() {
   const [index, setIndex] = useState<IndexCode>("VNINDEX");
@@ -18,6 +20,7 @@ export default function Terminal() {
   const [onTicker, setOnTicker] = useState(false);
   const [draft, setDraft] = useState("");
   const selected = onTicker ? ticker : null;
+  const [exVin, setExVin] = useState(false);
 
   const boards = { VNINDEX: useApi<BoardData>("/api/board?index=VNINDEX"), VN30: useApi<BoardData>("/api/board?index=VN30") };
   const board = boards[index];
@@ -55,23 +58,28 @@ export default function Terminal() {
             <button type="button" className="tabclose" aria-label={`Đóng ${ticker}`} onClick={() => { setTicker(null); setOnTicker(false); }}>×</button>
           </span>
         )}
+        <button type="button" className="toggle" aria-pressed={exVin} onClick={() => setExVin(!exVin)}
+          title={`Tính chỉ số không gồm ${VIN_GROUP.join(", ")}`}>
+          Loại nhóm Vin
+        </button>
       </div>
 
       <main>
         <div className="summary">
           {(Object.keys(INDEX_NAMES) as IndexCode[]).map((code) => (
-            <IndexCard key={code} name={INDEX_NAMES[code]} data={boards[code].data} active={index === code}
+            <IndexCard key={code} name={INDEX_NAMES[code]} data={boards[code].data} active={index === code} exVin={exVin}
               onSelect={() => { setIndex(code); setOnTicker(false); }} />
           ))}
           <BrokerHero />
         </div>
+        {exVin && <ExVinBanner index={index} data={board.data} />}
         <div className="row half">
           <ChartPanel index={index} board={board.data} error={board.error} />
-          <Heatmap index={index} data={board.data} error={board.error} onSelect={open} />
+          <Heatmap index={index} data={board.data} error={board.error} onSelect={open} exclude={exVin ? VIN_GROUP : undefined} />
         </div>
         <div className="row third">
           <SessionStats index={index} data={board.data} error={board.error} flow={flow.data} />
-          <IndexMovers index={index} onSelect={open} />
+          <IndexMovers index={index} onSelect={open} exVin={exVin} />
         </div>
         <ForeignFlowPanel index={index} symbol={selected} data={flow.data} error={flow.error} />
       </main>

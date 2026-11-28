@@ -14,6 +14,8 @@ export interface BoardData {
   series: { date: string; close: number; volume: number | null }[];
   volumeAvg20: number | null;
   heatmapDate: string | null;
+  /** The index rebuilt without the Vin stocks, latest session only. */
+  exVin: null | { excluded: string[]; groupWeight: number; groupPoints: number; changePercent: number; points: number };
   constituents: Tile[];
 }
 
