@@ -79,7 +79,8 @@ export default function AreaChart({ series, sessions, label }: { series: Point[]
         {ticks(min, max).map((v) => (
           <g key={v}>
             <line x1="0" x2={plotW} y1={y(v)} y2={y(v)} stroke="var(--soft)" />
-            <text x={plotW + 6} y={y(v) + 3.5}>{num(v)}</text>
+            {/* Hidden where the current-price tag would sit on top of it. */}
+            {Math.abs(y(v) - y(last)) > 14 && <text x={plotW + 6} y={y(v) + 3.5}>{num(v)}</text>}
           </g>
         ))}
         <path d={`${line}L${x(points.length - 1)},${PLOT_H}L${x(0)},${PLOT_H}Z`} fill="url(#areafill)" />
