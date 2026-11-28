@@ -17,8 +17,8 @@ The UI follows a "DES.md" design reference supplied by the owner (not in this re
 ## State
 
 - Dashboard redesigned: light terminal layout, Vietnamese UI.
-- Main chart: static area chart (`AreaChart.tsx`, 1W/1M/3M/6M/1Y) drawn from `index_daily`, with volume,
-  MA20 and MA50. It always shows the selected index; selecting a ticker only changes the foreign-flow panel.
+- Main chart: static area chart (`AreaChart.tsx`, 1W/1M/3M/6M/1Y) drawn from `index_daily`, with volume
+  (no moving-average lines, by choice). It always shows the selected index; selecting a ticker only changes the foreign-flow panel.
   It replaced a FireAnt candlestick embed (commit `8eb5d98`) because no area or fixed-range option of that
   embed is documented. `FireAntWidget.tsx` is kept, unused, in case you want to switch back.
 - Health is hidden from the UI only. `TickerHealthCard.tsx`, `/api/health/[symbol]` and scoring remain.

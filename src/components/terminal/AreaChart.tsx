@@ -10,16 +10,6 @@ const AXIS_W = 58; // price labels on the right
 const AXIS_H = 20; // date labels at the bottom
 const PLOT_H = HEIGHT - AXIS_H;
 const VOLUME_H = PLOT_H * 0.22;
-const MA20 = "#f0a43a";
-const MA50 = "#7b61ff";
-
-function movingAverage(values: number[], n: number) {
-  let sum = 0;
-  return values.map((v, i) => {
-    sum += v - (i >= n ? values[i - n] : 0);
-    return i >= n - 1 ? sum / n : null;
-  });
-}
 
 /** Round gridline values covering [min, max]. */
 function ticks(min: number, max: number, count = 8) {
@@ -45,7 +35,7 @@ function dateLabels(points: Point[], step: number) {
   return months.map(({ i, month }) => ({ i, text: gap >= 62 ? `Tháng ${month}` : `T${month}` }));
 }
 
-/** Static daily area chart over the last `sessions` moves, with volume, MA20 and MA50. */
+/** Static daily area chart over the last `sessions` moves, with volume. */
 export default function AreaChart({ series, sessions, label }: { series: Point[]; sessions: number; label: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -60,17 +50,12 @@ export default function AreaChart({ series, sessions, label }: { series: Point[]
   // One extra point: the close that the period's change is measured from.
   const from = Math.max(0, series.length - sessions - 1);
   const points = series.slice(from);
-  const averages = [
-    { name: "MA20", color: MA20, values: movingAverage(closes, 20).slice(from) },
-    { name: "MA50", color: MA50, values: movingAverage(closes, 50).slice(from) },
-  ];
-
   let body = null;
   if (width > 0 && points.length > 1) {
     const plotW = width - AXIS_W;
     const step = plotW / points.length;
     const x = (i: number) => (i + 0.5) * step;
-    const values = [...points.map((p) => p.close), ...averages.flatMap((a) => a.values.filter((v): v is number => v !== null))];
+    const values = points.map((p) => p.close);
     const lo = Math.min(...values);
     const hi = Math.max(...values);
     const pad = (hi - lo || 1) * 0.06;
@@ -82,11 +67,6 @@ export default function AreaChart({ series, sessions, label }: { series: Point[]
     const last = points.at(-1)!.close;
     const color = last >= first ? "var(--up)" : "var(--down)";
     const line = points.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.close)}`).join("");
-    const path = (list: (number | null)[]) => {
-      let d = "";
-      list.forEach((v, i) => { if (v !== null) d += `${d ? "L" : "M"}${x(i)},${y(v)}`; });
-      return d;
-    };
     body = (
       <svg width={width} height={HEIGHT} role="img"
         aria-label={`${label}: từ ${num(first)} ngày ${points[0].date} đến ${num(last)} ngày ${points.at(-1)!.date}`}>
@@ -110,7 +90,6 @@ export default function AreaChart({ series, sessions, label }: { series: Point[]
             fill={up ? "var(--up)" : "var(--down)"} opacity="0.35" />;
         })}
         <line x1="0" x2={plotW} y1={y(first)} y2={y(first)} stroke="var(--muted)" strokeDasharray="3 3" opacity="0.7" />
-        {averages.map((a) => <path key={a.name} d={path(a.values)} fill="none" stroke={a.color} strokeWidth="1.2" />)}
         <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
         <rect x={plotW + 1} y={y(last) - 9} width={AXIS_W - 2} height="18" rx="3" fill={color} />
         <text x={plotW + 6} y={y(last) + 3.5} className="pricetag">{num(last)}</text>
@@ -129,7 +108,6 @@ export default function AreaChart({ series, sessions, label }: { series: Point[]
         <p className="chartlegend">
           <span>Đóng cửa <b>{num(latest.close)}</b></span>
           {latest.volume !== null && <span>KL <b>{num(latest.volume / 1e6, 1)} triệu</b></span>}
-          {averages.map((a) => <span key={a.name} style={{ color: a.color }}>{a.name} {num(a.values.at(-1))}</span>)}
           <span className="muted">Nét đứt: mốc đầu kỳ</span>
         </p>
       )}
