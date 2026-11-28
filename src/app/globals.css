@@ -62,13 +62,19 @@ main { padding: 8px 10px 10px; display: grid; gap: 8px; grid-template-columns: m
 .badge.warn { color: var(--warn); border-color: currentColor; }
 .warnline { color: var(--warn); font-size: 11px; margin: 4px 0; }
 
-.returns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 0 0 6px; background: var(--soft); border-radius: 5px; }
-.returns div { padding: 3px 4px; text-align: center; }
-.returns dt { color: var(--muted); font-size: 10px; }
-.returns dd { margin: 0; font-weight: 600; }
-.fireant { display: block; width: 100%; min-height: 500px; border: 0; }
+.returns { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; margin: 0 0 6px; padding: 2px; background: var(--soft); border-radius: 6px; }
+.returns > * { display: flex; flex-direction: column; align-items: center; padding: 2px; border: 1px solid transparent; border-radius: 5px; background: transparent; line-height: 1.3; }
+.returns > button[aria-pressed="true"] { background: var(--bg); border-color: var(--accent); }
+.returns small { color: var(--muted); font-size: 10px; }
+.returns b { font-weight: 600; }
+.chartlegend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11px; margin-bottom: 4px; }
+.areachart { width: 100%; overflow: hidden; }
+.areachart svg { display: block; }
+.areachart text { font-size: 10.5px; fill: var(--muted); }
+.areachart .pricetag { fill: #fff; font-weight: 600; }
 
-.heatmap { position: relative; width: 100%; }
+.panel:has(.heatmap) { display: flex; flex-direction: column; }
+.heatmap { position: relative; width: 100%; flex: 1 0 358px; }
 .tile { position: absolute; overflow: hidden; border: 1px solid #fff; border-radius: 2px; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
 .tile:hover { filter: brightness(.93); border-color: var(--text); }
 .legend { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin: 6px 0 0; padding: 0; font-size: 10px; color: var(--muted); }

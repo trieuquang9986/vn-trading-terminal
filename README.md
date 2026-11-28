@@ -1,6 +1,6 @@
 # vn-trading-terminal
 
-Daily Vietnam market terminal (index board and heatmap, index movers, foreign flow, one FireAnt chart for index or ticker; the ticker health panel is currently hidden from the UI)
+Daily Vietnam market terminal (index board and heatmap, index movers, foreign flow, a fixed-range (1W–1Y) area chart of the selected index; the ticker health panel is currently hidden from the UI)
 plus a stock broker landing and `/about` page. Next.js on Netlify, Postgres on Neon, data from the FHSC Open API.
 The specification is in [AGENT.md](AGENT.md).
 

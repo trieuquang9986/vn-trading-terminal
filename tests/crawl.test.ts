@@ -144,6 +144,8 @@ describe("crawl across days", () => {
 
     const board = await getBoard("VNINDEX");
     expect(board.history.length).toBe(60);
+    expect(board.series.length).toBeGreaterThan(200);
+    expect(board.series.at(-1)!.close).toBe(board.history.at(-1));
     expect(board.volumeAvg20 === null || board.volumeAvg20 > 0).toBe(true);
     const movers = await getMovers("VNINDEX", 1);
     expect(movers.gainers.every((m) => m.changePercent !== null)).toBe(true);

@@ -11,6 +11,7 @@ export interface BoardData {
   };
   returns: { label: string; value: number | null }[];
   history: number[];
+  series: { date: string; close: number; volume: number | null }[];
   volumeAvg20: number | null;
   heatmapDate: string | null;
   constituents: Tile[];

@@ -66,7 +66,7 @@ export default function Terminal() {
           <BrokerHero />
         </div>
         <div className="row half">
-          <ChartPanel index={index} board={board.data} />
+          <ChartPanel index={index} board={board.data} error={board.error} />
           <Heatmap index={index} data={board.data} error={board.error} onSelect={open} />
         </div>
         <div className="row third">

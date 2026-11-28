@@ -50,7 +50,8 @@ export async function getBoard(index: IndexCode) {
      FROM index_daily WHERE index_code = $1 AND board_updated_at IS NOT NULL ORDER BY date DESC LIMIT 1`, [index]);
 
   const dates = await calendar();
-  const closes = alignToCalendar(dates, await closeMap("index_daily", "index_code", index));
+  const closeByDate = await closeMap("index_daily", "index_code", index);
+  const closes = alignToCalendar(dates, closeByDate);
   const yearStart = dates.at(-1)?.slice(0, 4);
   const ytdSessions = dates.filter((d) => d.slice(0, 4) === yearStart).length;
   const windows: [string, number][] = [["1W", 5], ["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["YTD", ytdSessions]];
@@ -59,8 +60,12 @@ export async function getBoard(index: IndexCode) {
   // Context for the summary cards: sparkline closes and the volume of the 20 sessions before the latest one.
   const history = closes.filter((c): c is number => c !== null).slice(-60);
   const volumes = await query<{ date: string; volume: number }>(
-    `SELECT date::text, volume FROM index_daily WHERE index_code = $1 AND volume IS NOT NULL AND date = ANY($2::date[]) ORDER BY date DESC LIMIT 21`,
+    `SELECT date::text, volume FROM index_daily WHERE index_code = $1 AND volume IS NOT NULL AND date = ANY($2::date[]) ORDER BY date DESC`,
     [index, dates]);
+  // Daily closes and volume behind the main area chart.
+  const volumeByDate = new Map(volumes.map((v) => [v.date, v.volume]));
+  const series = dates.filter((d) => closeByDate.has(d))
+    .map((date) => ({ date, close: closeByDate.get(date)!, volume: volumeByDate.get(date) ?? null }));
   const prior = volumes.filter((v) => v.date < (row?.date ?? volumes[0]?.date ?? "")).slice(0, 20);
   const volumeAvg20 = prior.length === 20 ? prior.reduce((s, v) => s + v.volume, 0) / 20 : null;
 
@@ -72,6 +77,7 @@ export async function getBoard(index: IndexCode) {
     board: row ?? null,
     returns,
     history,
+    series,
     volumeAvg20,
     heatmapDate: snap.dates.at(-1) ?? null,
     // Tile area: reported weight, else share of market cap.
